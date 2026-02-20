@@ -57,6 +57,14 @@
       letter-spacing: -0.01em;
     }
 
+    .title .version {
+      font-size: 0.42em;
+      font-weight: 800;
+      margin-left: 8px;
+      opacity: 0.68;
+      vertical-align: middle;
+    }
+
     .subtitle {
       margin: 4px 0 0;
       font-size: 0.95rem;
@@ -324,7 +332,7 @@
   <div class="wrap">
     <header class="topbar">
       <div>
-        <h1 class="title">상상 톡톡, 이어지는 이야기 기차</h1>
+        <h1 class="title">상상 톡톡, 이어지는 이야기 기차 <span class="version">v1.0</span></h1>
         <p class="subtitle">친구들과 한 문장씩 이어 쓰며 상상의 기차를 달려요. (교사용 서버 키 숨김 모드)</p>
       </div>
     </header>
@@ -487,7 +495,14 @@
 
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`이미지 생성 실패: ${res.status} ${text}`);
+          let detail = text;
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed?.error) detail = parsed.error;
+          } catch (_err) {
+            // Keep raw text when response body is not JSON.
+          }
+          throw new Error(`이미지 생성 실패 (${res.status}): ${detail}`);
         }
 
         const data = await res.json();
@@ -497,7 +512,7 @@
         return { ok: false, imageUrl: pickPlaceholderImage() };
       } catch (err) {
         console.error(err);
-        setStatus("이미지 생성 실패: 서버 설정을 확인해 주세요.");
+        setStatus(String(err.message || "이미지 생성 실패"));
         return { ok: false, imageUrl: pickPlaceholderImage() };
       }
     }

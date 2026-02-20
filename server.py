@@ -13,6 +13,13 @@ ROOT = Path(__file__).resolve().parent
 KEYCHAIN_SERVICE = "story-train-openrouter"
 
 
+class OpenRouterAPIError(Exception):
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+
+
 def load_env_file() -> None:
     env_path = ROOT / ".env"
     if not env_path.exists():
@@ -48,6 +55,8 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
             self.respond_json({"imageDataUrl": image_data_url})
         except json.JSONDecodeError:
             self.respond_json({"error": "invalid JSON"}, status=400)
+        except OpenRouterAPIError as exc:
+            self.respond_json({"error": exc.message}, status=exc.status_code)
         except RuntimeError as exc:
             self.respond_json({"error": str(exc)}, status=500)
         except Exception as exc:
@@ -135,7 +144,8 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
                 data = json.loads(raw)
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"OpenRouter HTTP {exc.code}: {detail[:220]}") from exc
+            message = parse_openrouter_error(detail) or detail[:220]
+            raise OpenRouterAPIError(exc.code, f"OpenRouter {exc.code}: {message}") from exc
         except error.URLError as exc:
             raise RuntimeError(f"OpenRouter 연결 실패: {exc}") from exc
 
@@ -177,6 +187,19 @@ def get_openrouter_api_key() -> str:
             text=True
         )
         return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+def parse_openrouter_error(detail: str) -> str:
+    try:
+        parsed = json.loads(detail)
+        err = parsed.get("error", {})
+        if isinstance(err, dict):
+            return str(err.get("message", "")).strip()
+        if err:
+            return str(err).strip()
+        return ""
     except Exception:
         return ""
 
