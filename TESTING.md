@@ -7,8 +7,7 @@ cd /Users/kimhongnyeon/Documents/Codex/ai-story-chain
 cp .env.example .env
 ```
 
-- 기본적으로 API 키 없이 `PIXAZO_ENDPOINT`만으로 동작하도록 구성됨
-- 필요 시 `.env`에 `PIXAZO_API_KEY` 추가
+- `.env`에 `PIXAZO_API_KEY`(구독 키)를 반드시 추가
 
 ## 2) 실행
 
@@ -31,5 +30,5 @@ python3 server.py
 - 상태 문구가 `이미지 생성 실패`이면:
   - 서버 실행 터미널 에러 로그 확인
   - 응답 코드가 `402`면 업스트림 크레딧/플랜 제한
-  - 응답 코드가 `404`면 `PIXAZO_ENDPOINT` 확인
-  - 필요 시 `PIXAZO_API_KEY` 추가
+  - 응답 코드가 `404`면 `PIXAZO_ENDPOINT`와 요청 파라미터 형식 확인
+  - 응답 코드가 `401`이면 `PIXAZO_API_KEY`(구독 키) 확인

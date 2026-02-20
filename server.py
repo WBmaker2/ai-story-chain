@@ -9,7 +9,10 @@ from urllib import error, request
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "4173"))
 ROOT = Path(__file__).resolve().parent
-PIXAZO_ENDPOINT = os.environ.get("PIXAZO_ENDPOINT", "https://api.pixazo.ai/v1/images/generations").strip()
+PIXAZO_ENDPOINT = os.environ.get(
+    "PIXAZO_ENDPOINT",
+    "https://gateway-replicate-flux-schnell.appypie.workers.dev/r-sd-3-5-large",
+).strip()
 
 
 class UpstreamAPIError(Exception):
@@ -104,8 +107,12 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def generate_with_pixazo(self, sentence: str) -> str:
-        width = int(os.environ.get("PIXAZO_WIDTH", "512"))
-        height = int(os.environ.get("PIXAZO_HEIGHT", "512"))
+        aspect_ratio = os.environ.get("PIXAZO_ASPECT_RATIO", "1:1").strip() or "1:1"
+        cfg = float(os.environ.get("PIXAZO_CFG", "4.5"))
+        steps = int(os.environ.get("PIXAZO_STEPS", "40"))
+        output_format = os.environ.get("PIXAZO_OUTPUT_FORMAT", "webp").strip() or "webp"
+        output_quality = int(os.environ.get("PIXAZO_OUTPUT_QUALITY", "90"))
+        prompt_strength = float(os.environ.get("PIXAZO_PROMPT_STRENGTH", "0.85"))
         prompt_prefix = os.environ.get(
             "PIXAZO_PROMPT_PREFIX",
             "초등학생을 위한 귀여운 동화풍 삽화, 밝은 파스텔 색감, 장면: "
@@ -113,16 +120,21 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
 
         payload = {
             "prompt": f"{prompt_prefix}{sentence}",
-            "width": width,
-            "height": height
+            "aspect_ratio": aspect_ratio,
+            "cfg": cfg,
+            "steps": steps,
+            "output_format": output_format,
+            "output_quality": output_quality,
+            "prompt_strength": prompt_strength,
         }
 
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": os.environ.get("PIXAZO_USER_AGENT", "story-train/1.1"),
         }
         api_key = os.environ.get("PIXAZO_API_KEY", "").strip()
         if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+            headers["Ocp-Apim-Subscription-Key"] = api_key
 
         req = request.Request(
             PIXAZO_ENDPOINT,
@@ -193,6 +205,12 @@ def parse_upstream_error(detail: str) -> str:
     try:
         parsed = json.loads(detail)
         if isinstance(parsed, dict):
+            if parsed.get("detail"):
+                title = str(parsed.get("title", "")).strip()
+                detail_msg = str(parsed.get("detail", "")).strip()
+                if title and detail_msg:
+                    return f"{title}: {detail_msg}"
+                return detail_msg
             if isinstance(parsed.get("error"), dict):
                 msg = str(parsed["error"].get("message", "")).strip()
                 if msg:
