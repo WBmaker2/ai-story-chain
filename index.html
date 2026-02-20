@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>상상 톡톡, 이어지는 이야기 기차</title>
+  <style>
+    :root {
+      --sky: #f6fbff;
+      --mint: #d8f5ec;
+      --peach: #ffe6d7;
+      --butter: #fff6c7;
+      --lavender: #ece5ff;
+      --ink: #3c3a4a;
+      --card: #ffffff;
+      --line: #d8dff0;
+      --accent: #4a89dc;
+      --accent-2: #ff8eb3;
+      --ok: #2f9b69;
+      --shadow: 0 10px 24px rgba(68, 86, 125, 0.12);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Nunito", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background:
+        radial-gradient(circle at 8% 12%, #ffffff 0%, transparent 25%),
+        radial-gradient(circle at 88% 18%, #ffffff 0%, transparent 20%),
+        linear-gradient(180deg, var(--sky), #eef7ff 35%, #f7f2ff 100%);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1100px, 94vw);
+      margin: 0 auto;
+      padding: 20px 0 48px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: clamp(1.2rem, 2.3vw, 2rem);
+      font-weight: 900;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      font-size: 0.95rem;
+      opacity: 0.8;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+      box-shadow: var(--shadow);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn.add {
+      background: linear-gradient(135deg, var(--accent), #68b0ff);
+      color: #fff;
+      min-width: 160px;
+    }
+
+    .btn.secondary {
+      background: linear-gradient(135deg, #ffffff, #f6f8ff);
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .train-panel {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel-title {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .train-track {
+      display: flex;
+      overflow-x: auto;
+      gap: 14px;
+      padding: 8px 4px 18px;
+      scrollbar-width: thin;
+    }
+
+    .car {
+      min-width: 180px;
+      background: var(--card);
+      border: 2px solid #c7d5ff;
+      border-radius: 14px 14px 10px 10px;
+      padding: 12px;
+      position: relative;
+      box-shadow: 0 8px 18px rgba(86, 115, 186, 0.15);
+    }
+
+    .car::before,
+    .car::after {
+      content: "";
+      position: absolute;
+      bottom: -12px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #7a93d6;
+      border: 2px solid #eef2ff;
+    }
+
+    .car::before { left: 16px; }
+    .car::after { right: 16px; }
+
+    .car-number {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 800;
+      background: var(--butter);
+      border: 1px dashed #e0c975;
+      border-radius: 999px;
+      padding: 3px 8px;
+      margin-bottom: 6px;
+    }
+
+    .car-text {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      word-break: keep-all;
+    }
+
+    .empty {
+      padding: 18px;
+      border: 2px dashed #cfd9f8;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #fff, #f7f9ff);
+      font-weight: 700;
+      opacity: 0.8;
+    }
+
+    .center-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .compose-panel,
+    .visual-panel,
+    .timeline-panel {
+      padding: 16px;
+    }
+
+    .lead {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      font-weight: 900;
+    }
+
+    .hint {
+      margin: 0 0 12px;
+      font-size: 0.92rem;
+      opacity: 0.78;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 2px solid #d8e1ff;
+      background: #fff;
+      padding: 12px;
+      font: inherit;
+      color: inherit;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(74, 137, 220, 0.16);
+    }
+
+    .compose-actions {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #47639a;
+      background: #edf4ff;
+      border: 1px solid #cdddfa;
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+
+    .visual-holder {
+      margin-top: 10px;
+      border-radius: 14px;
+      border: 2px dashed #d2dcff;
+      background: linear-gradient(150deg, var(--mint), var(--peach));
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .visual-holder img {
+      width: 100%;
+      max-height: 240px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      display: none;
+    }
+
+    .visual-msg {
+      font-size: 0.95rem;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid #d4defd;
+    }
+
+    .timeline-list {
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 10px;
+      align-items: start;
+      background: #fff;
+      border: 1px solid #dce3fa;
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .stamp {
+      font-size: 0.76rem;
+      text-align: center;
+      font-weight: 800;
+      background: var(--lavender);
+      border: 1px solid #cdbff8;
+      border-radius: 8px;
+      padding: 6px;
+    }
+
+    @media (max-width: 960px) {
+      .center-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .visual-holder {
+        min-height: 180px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .wrap {
+        width: min(100vw, 100%);
+        padding: 10px 10px 24px;
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+      }
+
+      .btn.add {
+        width: 100%;
+      }
+
+      .timeline-item {
+        grid-template-columns: 64px 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div>
+        <h1 class="title">상상 톡톡, 이어지는 이야기 기차</h1>
+        <p class="subtitle">친구들과 한 문장씩 이어 쓰며 상상의 기차를 달려요. (교사용 서버 키 숨김 모드)</p>
+      </div>
+    </header>
+
+    <section class="panel train-panel" aria-label="기차 칸 문장 목록">
+      <h2 class="panel-title">현재까지 완성된 기차 칸</h2>
+      <div id="trainTrack" class="train-track">
+        <div class="empty">아직 기차 칸이 없어요. 첫 문장을 입력해 볼까요?</div>
+      </div>
+    </section>
+
+    <section class="center-grid" aria-label="글쓰기 및 시각화">
+      <article class="panel compose-panel">
+        <p class="lead">다음 이야기를 이어가세요</p>
+        <p class="hint">문장을 짧고 재미있게 쓰면 친구들이 이어서 쓰기 쉬워요.</p>
+        <textarea id="sentenceInput" placeholder="예: 기차가 무지개 터널을 지나자 하늘에서 별사탕이 내렸어요."></textarea>
+        <div class="compose-actions">
+          <button id="addCarBtn" class="btn add" type="button">기차 칸 추가하기</button>
+          <span id="statusText" class="status">준비 완료</span>
+        </div>
+      </article>
+
+      <article class="panel visual-panel">
+        <h2 class="panel-title">장면 시각화</h2>
+        <p class="hint">새 문장이 추가되면 AI가 장면 그림을 만들어요.</p>
+        <div class="visual-holder" id="visualHolder">
+          <span id="visualMessage" class="visual-msg">AI가 그림을 그리는 중입니다...</span>
+          <img id="sceneImage" alt="이야기 장면 예시 이미지" />
+        </div>
+      </article>
+    </section>
+
+    <section class="panel timeline-panel" aria-label="이야기 타임라인">
+      <h2 class="panel-title">전체 이야기 타임라인</h2>
+      <ul id="timelineList" class="timeline-list"></ul>
+    </section>
+  </div>
+
+  <script>
+    function createPlaceholderImage(label, bgA = "#d8f5ec", bgB = "#ffe6d7") {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+          <defs>
+            <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="${bgA}" />
+              <stop offset="100%" stop-color="${bgB}" />
+            </linearGradient>
+          </defs>
+          <rect width="1200" height="700" fill="url(#g)" />
+          <circle cx="160" cy="140" r="70" fill="#fff8cc" />
+          <rect x="120" y="470" width="980" height="140" rx="20" fill="#ffffffaa" stroke="#c7d5ff" stroke-width="4" />
+          <text x="600" y="300" text-anchor="middle" font-size="56" font-family="Nunito, Arial" fill="#3c3a4a">AI 장면 예시</text>
+          <text x="600" y="545" text-anchor="middle" font-size="38" font-family="Nunito, Arial" fill="#3c3a4a">${label}</text>
+        </svg>
+      `;
+      return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    }
+
+    const state = {
+      story: [],
+      isGenerating: false,
+      placeholderImages: [
+        createPlaceholderImage("무지개 터널을 달리는 이야기 기차", "#d8f5ec", "#ffe6d7"),
+        createPlaceholderImage("별사탕이 내리는 판타지 장면", "#ece5ff", "#fff6c7"),
+        createPlaceholderImage("구름 위 친구들과의 모험", "#d9ecff", "#fce4ff")
+      ]
+    };
+
+    const el = {
+      trainTrack: document.getElementById("trainTrack"),
+      timelineList: document.getElementById("timelineList"),
+      sentenceInput: document.getElementById("sentenceInput"),
+      addCarBtn: document.getElementById("addCarBtn"),
+      statusText: document.getElementById("statusText"),
+      visualMessage: document.getElementById("visualMessage"),
+      sceneImage: document.getElementById("sceneImage"),
+      visualHolder: document.getElementById("visualHolder")
+    };
+
+    function setStatus(msg) {
+      el.statusText.textContent = msg;
+    }
+
+    function formatNow(date = new Date()) {
+      return new Intl.DateTimeFormat("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function renderTrain() {
+      if (state.story.length === 0) {
+        el.trainTrack.innerHTML = "<div class=\"empty\">아직 기차 칸이 없어요. 첫 문장을 입력해 볼까요?</div>";
+        return;
+      }
+
+      el.trainTrack.innerHTML = state.story
+        .map((item, idx) => `
+          <article class="car" aria-label="${idx + 1}번 기차 칸">
+            <span class="car-number">${idx + 1}칸</span>
+            <p class="car-text">${escapeHtml(item.text)}</p>
+          </article>
+        `)
+        .join("");
+    }
+
+    function renderTimeline() {
+      if (state.story.length === 0) {
+        el.timelineList.innerHTML = `<li class="empty">이야기를 시작하면 여기에 타임라인이 쌓여요.</li>`;
+        return;
+      }
+
+      el.timelineList.innerHTML = state.story
+        .map((item, idx) => `
+          <li class="timeline-item">
+            <div class="stamp">${idx + 1}칸<br>${item.time}</div>
+            <div>${escapeHtml(item.text)}</div>
+          </li>
+        `)
+        .join("");
+    }
+
+    function setVisualLoading(text = "AI가 그림을 그리는 중입니다...") {
+      el.visualMessage.textContent = text;
+      el.visualMessage.style.display = "inline-block";
+      el.sceneImage.style.display = "none";
+      el.sceneImage.removeAttribute("src");
+    }
+
+    function setVisualImage(url) {
+      el.sceneImage.src = url;
+      el.sceneImage.style.display = "block";
+      el.visualMessage.style.display = "none";
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function pickPlaceholderImage() {
+      const idx = Math.floor(Math.random() * state.placeholderImages.length);
+      return state.placeholderImages[idx];
+    }
+
+    async function generateImageWithNanobanana(sentence) {
+      try {
+        const res = await fetch("/api/generate-image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ sentence })
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`이미지 생성 실패: ${res.status} ${text}`);
+        }
+
+        const data = await res.json();
+        if (data?.imageDataUrl) return data.imageDataUrl;
+        return pickPlaceholderImage();
+      } catch (err) {
+        console.error(err);
+        setStatus("이미지 생성 실패: 서버 설정을 확인해 주세요.");
+        return pickPlaceholderImage();
+      }
+    }
+
+    async function addSentence() {
+      if (state.isGenerating) return;
+
+      const text = el.sentenceInput.value.trim();
+      if (!text) {
+        setStatus("문장을 입력해 주세요.");
+        el.sentenceInput.focus();
+        return;
+      }
+
+      state.story.push({ text, time: formatNow() });
+      renderTrain();
+      renderTimeline();
+      el.sentenceInput.value = "";
+      el.sentenceInput.focus();
+
+      state.isGenerating = true;
+      setStatus("장면 이미지를 생성 중...");
+      setVisualLoading();
+
+      const imageUrl = await generateImageWithNanobanana(text);
+      setVisualImage(imageUrl);
+
+      state.isGenerating = false;
+      setStatus("기차 칸이 추가되었어요!");
+    }
+
+    el.addCarBtn.addEventListener("click", addSentence);
+    el.sentenceInput.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") addSentence();
+    });
+
+    renderTrain();
+    renderTimeline();
+    setVisualLoading("AI가 그림을 그리는 중입니다...");
+  </script>
+</body>
+</html>
