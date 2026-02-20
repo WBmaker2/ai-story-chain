@@ -103,14 +103,22 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
 
+        # OpenRouter image generation uses chat/completions + modalities.
+        modalities = ["image"] if model.startswith("sourceful/") else ["image", "text"]
         payload = {
             "model": model,
-            "prompt": f"초등학생 동화 삽화 스타일. 밝고 귀여운 파스텔 톤. 장면: {sentence}",
-            "size": "1024x1024"
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"초등학생 동화 삽화 스타일. 밝고 귀여운 파스텔 톤. 장면: {sentence}"
+                }
+            ],
+            "modalities": modalities,
+            "stream": False
         }
 
         req = request.Request(
-            "https://openrouter.ai/api/v1/images/generations",
+            "https://openrouter.ai/api/v1/chat/completions",
             method="POST",
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -131,13 +139,21 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         except error.URLError as exc:
             raise RuntimeError(f"OpenRouter 연결 실패: {exc}") from exc
 
+        message = ((data.get("choices") or [{}])[0]).get("message") or {}
+        images = message.get("images") or []
+        if images:
+            image = images[0] or {}
+            image_url = image.get("image_url") or {}
+            url = image_url.get("url")
+            if url:
+                return url
+
+        # Backward compatibility for possible alternate response shapes.
         item = (data.get("data") or [{}])[0]
         b64 = item.get("b64_json")
-        url = item.get("url")
-
         if b64:
             return f"data:image/png;base64,{b64}"
-
+        url = item.get("url")
         if url:
             return url
 
