@@ -7,9 +7,9 @@ services:
     startCommand: "python3 server.py"
     healthCheckPath: /healthz
     envVars:
-      - key: OPENROUTER_API_KEY
+      - key: PIXAZO_ENDPOINT
+        value: https://api.pixazo.ai/v1/images/generations
+      - key: PIXAZO_API_KEY
         sync: false
-      - key: OPENROUTER_IMAGE_MODEL
-        value: sourceful/riverflow-v2-pro
       - key: APP_BASE_URL
         sync: false

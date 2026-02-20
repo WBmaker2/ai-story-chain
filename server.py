@@ -2,7 +2,6 @@
 import json
 import mimetypes
 import os
-import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib import error, request
@@ -10,10 +9,10 @@ from urllib import error, request
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "4173"))
 ROOT = Path(__file__).resolve().parent
-KEYCHAIN_SERVICE = "story-train-openrouter"
+PIXAZO_ENDPOINT = os.environ.get("PIXAZO_ENDPOINT", "https://api.pixazo.ai/v1/images/generations").strip()
 
 
-class OpenRouterAPIError(Exception):
+class UpstreamAPIError(Exception):
     def __init__(self, status_code: int, message: str) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -51,11 +50,11 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
                 self.respond_json({"error": "sentence is required"}, status=400)
                 return
 
-            image_data_url = self.generate_with_openrouter(sentence)
+            image_data_url = self.generate_with_pixazo(sentence)
             self.respond_json({"imageDataUrl": image_data_url})
         except json.JSONDecodeError:
             self.respond_json({"error": "invalid JSON"}, status=400)
-        except OpenRouterAPIError as exc:
+        except UpstreamAPIError as exc:
             self.respond_json({"error": exc.message}, status=exc.status_code)
         except RuntimeError as exc:
             self.respond_json({"error": str(exc)}, status=500)
@@ -104,104 +103,111 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def generate_with_openrouter(self, sentence: str) -> str:
-        api_key = get_openrouter_api_key()
-        model = os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.0-flash-exp:free").strip()
-        app_base_url = os.environ.get("APP_BASE_URL", f"http://localhost:{PORT}").strip()
+    def generate_with_pixazo(self, sentence: str) -> str:
+        width = int(os.environ.get("PIXAZO_WIDTH", "512"))
+        height = int(os.environ.get("PIXAZO_HEIGHT", "512"))
+        prompt_prefix = os.environ.get(
+            "PIXAZO_PROMPT_PREFIX",
+            "초등학생을 위한 귀여운 동화풍 삽화, 밝은 파스텔 색감, 장면: "
+        ).strip()
 
-        if not api_key:
-            raise RuntimeError("OPENROUTER_API_KEY가 설정되지 않았습니다.")
-
-        # OpenRouter image generation uses chat/completions + modalities.
-        modalities = ["image"] if model.startswith("sourceful/") else ["image", "text"]
         payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"초등학생 동화 삽화 스타일. 밝고 귀여운 파스텔 톤. 장면: {sentence}"
-                }
-            ],
-            "modalities": modalities,
-            "stream": False
+            "prompt": f"{prompt_prefix}{sentence}",
+            "width": width,
+            "height": height
         }
 
+        headers = {
+            "Content-Type": "application/json"
+        }
+        api_key = os.environ.get("PIXAZO_API_KEY", "").strip()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
         req = request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",
+            PIXAZO_ENDPOINT,
             method="POST",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": app_base_url,
-                "X-Title": "Story Train"
-            },
+            headers=headers,
             data=json.dumps(payload).encode("utf-8")
         )
 
         try:
-            with request.urlopen(req, timeout=60) as resp:
+            with request.urlopen(req, timeout=90) as resp:
                 raw = resp.read().decode("utf-8")
                 data = json.loads(raw)
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
-            message = parse_openrouter_error(detail) or detail[:220]
-            raise OpenRouterAPIError(exc.code, f"OpenRouter {exc.code}: {message}") from exc
+            msg = parse_upstream_error(detail)
+            raise UpstreamAPIError(exc.code, f"Pixazo {exc.code}: {msg}") from exc
         except error.URLError as exc:
-            raise RuntimeError(f"OpenRouter 연결 실패: {exc}") from exc
+            raise RuntimeError(f"Pixazo 연결 실패: {exc}") from exc
 
-        message = ((data.get("choices") or [{}])[0]).get("message") or {}
-        images = message.get("images") or []
-        if images:
-            image = images[0] or {}
-            image_url = image.get("image_url") or {}
-            url = image_url.get("url")
-            if url:
-                return url
+        image_data_url = extract_image_url_or_data(data)
+        if image_data_url:
+            return image_data_url
 
-        # Backward compatibility for possible alternate response shapes.
-        item = (data.get("data") or [{}])[0]
-        b64 = item.get("b64_json")
-        if b64:
-            return f"data:image/png;base64,{b64}"
-        url = item.get("url")
-        if url:
-            return url
-
-        raise RuntimeError("이미지 응답을 찾지 못했습니다. OPENROUTER_IMAGE_MODEL 값을 확인해 주세요.")
+        raise RuntimeError("Pixazo 응답에서 이미지 데이터를 찾지 못했습니다.")
 
 
-def get_openrouter_api_key() -> str:
-    env_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if env_key:
-        return env_key
-
-    try:
-        username = os.environ.get("USER", "")
-        cmd = ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"]
-        if username:
-            cmd.extend(["-a", username])
-        result = subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        return result.stdout.strip()
-    except Exception:
+def extract_image_url_or_data(obj, depth: int = 0) -> str:
+    if depth > 6:
         return ""
 
+    if isinstance(obj, str):
+        val = obj.strip()
+        if val.startswith("http://") or val.startswith("https://") or val.startswith("data:image/"):
+            return val
+        return ""
 
-def parse_openrouter_error(detail: str) -> str:
+    if isinstance(obj, list):
+        for item in obj:
+            found = extract_image_url_or_data(item, depth + 1)
+            if found:
+                return found
+        return ""
+
+    if not isinstance(obj, dict):
+        return ""
+
+    for key in ("imageDataUrl", "image_url", "imageUrl", "url"):
+        value = obj.get(key)
+        found = extract_image_url_or_data(value, depth + 1)
+        if found:
+            return found
+
+    for key in ("b64_json", "base64", "image_base64", "imageBase64"):
+        value = obj.get(key)
+        if isinstance(value, str) and value.strip():
+            return f"data:image/png;base64,{value.strip()}"
+
+    for key in ("data", "images", "output", "result", "results"):
+        value = obj.get(key)
+        found = extract_image_url_or_data(value, depth + 1)
+        if found:
+            return found
+
+    return ""
+
+
+def parse_upstream_error(detail: str) -> str:
     try:
         parsed = json.loads(detail)
-        err = parsed.get("error", {})
-        if isinstance(err, dict):
-            return str(err.get("message", "")).strip()
-        if err:
-            return str(err).strip()
-        return ""
+        if isinstance(parsed, dict):
+            if isinstance(parsed.get("error"), dict):
+                msg = str(parsed["error"].get("message", "")).strip()
+                if msg:
+                    return msg
+            if parsed.get("error"):
+                return str(parsed["error"]).strip()
+            if parsed.get("message"):
+                return str(parsed["message"]).strip()
     except Exception:
-        return ""
+        pass
+
+    compact = " ".join(detail.strip().split())
+    if compact.startswith("<!DOCTYPE html"):
+        return "엔드포인트 또는 요청 형식이 올바르지 않습니다."
+    return compact[:220] if compact else "Unknown upstream error"
 
 
 def main() -> None:

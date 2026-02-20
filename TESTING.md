@@ -1,23 +1,14 @@
-# 테스트 가이드 (서버 키 숨김 모드)
+# 테스트 가이드 (Pixazo)
 
-## 1) 교사용 API 키 설정 (브라우저에 노출되지 않음)
-
-1. 가장 쉬운 방법(숨김 입력):
-
-```bash
-cd /Users/kimhongnyeon/Documents/Codex/ai-story-chain
-./set_openrouter_key.sh
-```
-
-2. 또는 수동으로 아래 파일을 복사:
+## 1) 로컬 설정
 
 ```bash
 cd /Users/kimhongnyeon/Documents/Codex/ai-story-chain
 cp .env.example .env
 ```
 
-3. `.env` 파일에서 `OPENROUTER_API_KEY` 값을 실제 키로 바꿉니다.
-4. 필요하면 `OPENROUTER_IMAGE_MODEL`도 사용 가능한 이미지 모델로 바꿉니다.
+- 기본적으로 API 키 없이 `PIXAZO_ENDPOINT`만으로 동작하도록 구성됨
+- 필요 시 `.env`에 `PIXAZO_API_KEY` 추가
 
 ## 2) 실행
 
@@ -39,6 +30,6 @@ python3 server.py
 
 - 상태 문구가 `이미지 생성 실패`이면:
   - 서버 실행 터미널 에러 로그 확인
-  - `.env`의 `OPENROUTER_API_KEY` 값 확인
-  - `OPENROUTER_IMAGE_MODEL`을 실제 이미지 생성 가능 모델로 교체
-- API 키는 서버 환경변수로만 사용되며, 프론트엔드로 전달되지 않습니다.
+  - 응답 코드가 `402`면 업스트림 크레딧/플랜 제한
+  - 응답 코드가 `404`면 `PIXAZO_ENDPOINT` 확인
+  - 필요 시 `PIXAZO_API_KEY` 추가
