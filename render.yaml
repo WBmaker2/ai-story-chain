@@ -7,9 +7,9 @@ services:
     startCommand: "python3 server.py"
     healthCheckPath: /healthz
     envVars:
-      - key: PIXAZO_ENDPOINT
-        value: https://gateway-replicate-flux-schnell.appypie.workers.dev/r-sd-3-5-large
-      - key: PIXAZO_API_KEY
-        sync: false
-      - key: APP_BASE_URL
-        sync: false
+      - key: PROMPT_PREFIX
+        value: "cute fairy tale illustration for elementary school children, bright pastel colors, scene: "
+      - key: POLLINATIONS_WIDTH
+        value: "512"
+      - key: POLLINATIONS_HEIGHT
+        value: "512"
