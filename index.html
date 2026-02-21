@@ -464,9 +464,25 @@
     }
 
     function setVisualImage(url) {
-      el.sceneImage.src = url;
-      el.sceneImage.style.display = "block";
-      el.visualMessage.style.display = "none";
+      // 로딩 중 표시 유지
+      el.visualMessage.textContent = "AI가 그림을 그리는 중입니다...";
+      el.visualMessage.style.display = "inline-block";
+      el.sceneImage.style.display = "none";
+
+      const img = el.sceneImage;
+      img.onload = () => {
+        img.style.display = "block";
+        el.visualMessage.style.display = "none";
+      };
+      img.onerror = () => {
+        // 이미지 로드 실패 시 플레이스홀더 사용
+        img.onload = null;
+        img.onerror = null;
+        img.src = pickPlaceholderImage();
+        img.style.display = "block";
+        el.visualMessage.style.display = "none";
+      };
+      img.src = url;
     }
 
     function escapeHtml(str) {
