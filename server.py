@@ -2,24 +2,14 @@
 import json
 import mimetypes
 import os
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib import error, request
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "4173"))
 ROOT = Path(__file__).resolve().parent
-PIXAZO_ENDPOINT = os.environ.get(
-    "PIXAZO_ENDPOINT",
-    "https://gateway-replicate-flux-schnell.appypie.workers.dev/r-sd-3-5-large",
-).strip()
-
-
-class UpstreamAPIError(Exception):
-    def __init__(self, status_code: int, message: str) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.message = message
+POLLINATIONS_BASE = "https://image.pollinations.ai/prompt"
 
 
 def load_env_file() -> None:
@@ -53,12 +43,10 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
                 self.respond_json({"error": "sentence is required"}, status=400)
                 return
 
-            image_data_url = self.generate_with_pixazo(sentence)
+            image_data_url = self.generate_with_pollinations(sentence)
             self.respond_json({"imageDataUrl": image_data_url})
         except json.JSONDecodeError:
             self.respond_json({"error": "invalid JSON"}, status=400)
-        except UpstreamAPIError as exc:
-            self.respond_json({"error": exc.message}, status=exc.status_code)
         except RuntimeError as exc:
             self.respond_json({"error": str(exc)}, status=500)
         except Exception as exc:
@@ -106,126 +94,20 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def generate_with_pixazo(self, sentence: str) -> str:
-        aspect_ratio = os.environ.get("PIXAZO_ASPECT_RATIO", "1:1").strip() or "1:1"
-        cfg = float(os.environ.get("PIXAZO_CFG", "4.5"))
-        steps = int(os.environ.get("PIXAZO_STEPS", "40"))
-        output_format = os.environ.get("PIXAZO_OUTPUT_FORMAT", "webp").strip() or "webp"
-        output_quality = int(os.environ.get("PIXAZO_OUTPUT_QUALITY", "90"))
-        prompt_strength = float(os.environ.get("PIXAZO_PROMPT_STRENGTH", "0.85"))
+    def generate_with_pollinations(self, sentence: str) -> str:
         prompt_prefix = os.environ.get(
-            "PIXAZO_PROMPT_PREFIX",
-            "초등학생을 위한 귀여운 동화풍 삽화, 밝은 파스텔 색감, 장면: "
+            "PROMPT_PREFIX",
+            "cute fairy tale illustration for elementary school children, bright pastel colors, scene: "
         ).strip()
+        width = int(os.environ.get("POLLINATIONS_WIDTH", "512"))
+        height = int(os.environ.get("POLLINATIONS_HEIGHT", "512"))
 
-        payload = {
-            "prompt": f"{prompt_prefix}{sentence}",
-            "aspect_ratio": aspect_ratio,
-            "cfg": cfg,
-            "steps": steps,
-            "output_format": output_format,
-            "output_quality": output_quality,
-            "prompt_strength": prompt_strength,
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": os.environ.get("PIXAZO_USER_AGENT", "story-train/1.1"),
-        }
-        api_key = os.environ.get("PIXAZO_API_KEY", "").strip()
-        if api_key:
-            headers["Ocp-Apim-Subscription-Key"] = api_key
-
-        req = request.Request(
-            PIXAZO_ENDPOINT,
-            method="POST",
-            headers=headers,
-            data=json.dumps(payload).encode("utf-8")
+        full_prompt = urllib.parse.quote(f"{prompt_prefix}{sentence}")
+        image_url = (
+            f"{POLLINATIONS_BASE}/{full_prompt}"
+            f"?width={width}&height={height}&nologo=true&model=flux"
         )
-
-        try:
-            with request.urlopen(req, timeout=90) as resp:
-                raw = resp.read().decode("utf-8")
-                data = json.loads(raw)
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="ignore")
-            msg = parse_upstream_error(detail)
-            raise UpstreamAPIError(exc.code, f"Pixazo {exc.code}: {msg}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"Pixazo 연결 실패: {exc}") from exc
-
-        image_data_url = extract_image_url_or_data(data)
-        if image_data_url:
-            return image_data_url
-
-        raise RuntimeError("Pixazo 응답에서 이미지 데이터를 찾지 못했습니다.")
-
-
-def extract_image_url_or_data(obj, depth: int = 0) -> str:
-    if depth > 6:
-        return ""
-
-    if isinstance(obj, str):
-        val = obj.strip()
-        if val.startswith("http://") or val.startswith("https://") or val.startswith("data:image/"):
-            return val
-        return ""
-
-    if isinstance(obj, list):
-        for item in obj:
-            found = extract_image_url_or_data(item, depth + 1)
-            if found:
-                return found
-        return ""
-
-    if not isinstance(obj, dict):
-        return ""
-
-    for key in ("imageDataUrl", "image_url", "imageUrl", "url"):
-        value = obj.get(key)
-        found = extract_image_url_or_data(value, depth + 1)
-        if found:
-            return found
-
-    for key in ("b64_json", "base64", "image_base64", "imageBase64"):
-        value = obj.get(key)
-        if isinstance(value, str) and value.strip():
-            return f"data:image/png;base64,{value.strip()}"
-
-    for key in ("data", "images", "output", "result", "results"):
-        value = obj.get(key)
-        found = extract_image_url_or_data(value, depth + 1)
-        if found:
-            return found
-
-    return ""
-
-
-def parse_upstream_error(detail: str) -> str:
-    try:
-        parsed = json.loads(detail)
-        if isinstance(parsed, dict):
-            if parsed.get("detail"):
-                title = str(parsed.get("title", "")).strip()
-                detail_msg = str(parsed.get("detail", "")).strip()
-                if title and detail_msg:
-                    return f"{title}: {detail_msg}"
-                return detail_msg
-            if isinstance(parsed.get("error"), dict):
-                msg = str(parsed["error"].get("message", "")).strip()
-                if msg:
-                    return msg
-            if parsed.get("error"):
-                return str(parsed["error"]).strip()
-            if parsed.get("message"):
-                return str(parsed["message"]).strip()
-    except Exception:
-        pass
-
-    compact = " ".join(detail.strip().split())
-    if compact.startswith("<!DOCTYPE html"):
-        return "엔드포인트 또는 요청 형식이 올바르지 않습니다."
-    return compact[:220] if compact else "Unknown upstream error"
+        return image_url
 
 
 def main() -> None:
