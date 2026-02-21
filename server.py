@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import base64
 import json
 import mimetypes
 import os
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib import error, request
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "4173"))
@@ -107,7 +109,23 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
             f"{POLLINATIONS_BASE}/{full_prompt}"
             f"?width={width}&height={height}&nologo=true"
         )
-        return image_url
+
+        # 서버에서 이미지를 직접 다운로드해 base64로 변환
+        # (Render 등 외부 서버에서 실행 시 브라우저 차단 우회)
+        req = request.Request(
+            image_url,
+            headers={"User-Agent": "story-train/1.2"},
+        )
+        try:
+            with request.urlopen(req, timeout=60) as resp:
+                content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+                image_bytes = resp.read()
+                b64 = base64.b64encode(image_bytes).decode("ascii")
+                return f"data:{content_type};base64,{b64}"
+        except error.HTTPError as exc:
+            raise RuntimeError(f"Pollinations 오류 ({exc.code}): {exc.reason}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"Pollinations 연결 실패: {exc}") from exc
 
 
 def main() -> None:
