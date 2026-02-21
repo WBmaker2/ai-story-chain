@@ -105,7 +105,7 @@ class StoryTrainHandler(BaseHTTPRequestHandler):
         full_prompt = urllib.parse.quote(f"{prompt_prefix}{sentence}")
         image_url = (
             f"{POLLINATIONS_BASE}/{full_prompt}"
-            f"?width={width}&height={height}&nologo=true&model=flux"
+            f"?width={width}&height={height}&nologo=true"
         )
         return image_url
 
