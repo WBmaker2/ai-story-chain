@@ -505,7 +505,7 @@
       return `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true`;
     }
 
-    async function generateImageWithNanobanana(sentence) {
+    async function generateSceneImage(sentence) {
       // GitHub Pages (static) 환경: 서버 없이 Pollinations.ai 직접 호출
       if (location.hostname.endsWith("github.io") || location.protocol === "file:") {
         return { ok: true, imageUrl: buildPollinationsUrl(sentence) };
@@ -530,8 +530,8 @@
           } catch (_err) {
             // Keep raw text when response body is not JSON.
           }
-          // 서버가 없는 환경(405)이면 직접 Pollinations URL 사용
-          if (res.status === 405) {
+          // 서버가 없는 정적 호스팅 환경이면 직접 Pollinations URL 사용
+          if (res.status === 404 || res.status === 405) {
             return { ok: true, imageUrl: buildPollinationsUrl(sentence) };
           }
           throw new Error(`이미지 생성 실패 (${res.status}): ${detail}`);
@@ -569,7 +569,7 @@
       setStatus("장면 이미지를 생성 중...");
       setVisualLoading();
 
-      const result = await generateImageWithNanobanana(text);
+      const result = await generateSceneImage(text);
       setVisualImage(result.imageUrl);
 
       state.isGenerating = false;
